@@ -1,6 +1,6 @@
 {
     "character_name": "Bud",
-    "current_level": 0,
+    "current_level": 2,
     "biome": "Meadows",
     "boss_flags": {
         "eikthyr_1.5mi": false
@@ -10,18 +10,25 @@
             "level": 2,
             "xp": 272
         },
-        "vitality": {
+        "strength": {
             "level": 0,
-            "xp": 0
+            "xp": 2
+        },
+        "vitality": {
+            "level": 1,
+            "xp": 52
         },
         "agility": {
-            "level": 0,
-            "xp": 0
+            "level": 2,
+            "xp": 35
         }
     },
     "status": {
         "last_raid_date": "2026-04-21",
         "streak_days": 1,
         "is_at_the_inn": false
-    }
+    },
+    "processed_activities": [
+        "22608417062"
+    ]
 }

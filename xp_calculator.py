@@ -5,7 +5,7 @@ from pathlib import Path
 # Configuration based on GEMINI.md
 BASE_XP = 100
 SAVE_GAME_PATH = Path("/home/bud/dev/trophy_train/save_game.json")
-ACTIVITY_FILE = Path("/home/bud/dev/trophy_train/data/activity_22608417062.json")
+DATA_DIR = Path("/home/bud/dev/trophy_train/data")
 
 def calculate_xp_requirement(level: int) -> int:
     """
@@ -17,15 +17,31 @@ def calculate_xp_requirement(level: int) -> int:
     return math.floor(BASE_XP * math.pow(level, 1.5))
 
 def main():
-    if not ACTIVITY_FILE.exists():
-        print(f"Error: Activity data not found at {ACTIVITY_FILE}")
+    # Find the latest activity file in the data directory
+    activity_files = list(DATA_DIR.glob("activity_*.json"))
+    
+    if not activity_files:
+        print(f"Error: No activity data found in {DATA_DIR}")
         return
+
+    latest_activity_path = max(activity_files, key=lambda f: f.stat().st_mtime)
 
     # Load character state and activity data
     with open(SAVE_GAME_PATH, "r") as f:
         save_game = json.load(f)
+
+    # Extract activity ID and handle initialization of processed_activities
+    activity_id_str = latest_activity_path.stem.replace("activity_", "")
+    if "processed_activities" not in save_game:
+        save_game["processed_activities"] = []
+    if "strength" not in save_game["skills"]:
+        save_game["skills"]["strength"] = {"level": 0, "xp": 0}
+
+    if activity_id_str in save_game["processed_activities"]:
+        print(f"Activity {activity_id_str} already processed. Skipping.")
+        return
     
-    with open(ACTIVITY_FILE, "r") as f:
+    with open(latest_activity_path, "r") as f:
         activity = json.load(f)
 
     # If the JSON is a list, take the first activity
@@ -38,6 +54,7 @@ def main():
     avg_hr = 0.0
     avg_cadence = 0.0
     max_hr_overall = 0.0 # To gather max HR
+    total_elevation_gain = 0.0
 
     # For weighted averages of HR and Cadence
     total_hr_sum_weighted = 0.0
@@ -45,20 +62,27 @@ def main():
     total_duration_for_hr_avg = 0.0
     total_duration_for_cadence_avg = 0.0
 
+    # For Run/Walk Dominance
+    run_dist = 0.0
+    walk_dist = 0.0
+
     # Attempt to extract data from lapDTOs first, as per GEMINI.md
     laps = activity.get("lapDTOs") or activity.get("laps") # Common keys for laps
 
     if laps and isinstance(laps, list):
         print("Aggregating data from activity laps...")
         for lap in laps:
-            lap_distance = float(lap.get("distance", 0.0))
-            lap_duration = float(lap.get("duration", 0.0))
-            lap_avg_hr = float(lap.get("averageHeartRate", 0.0))
-            lap_avg_cadence = float(lap.get("averageRunningCadenceInStepsPerMinute", 0.0))
-            lap_max_hr = float(lap.get("maxHeartRate", 0.0))
+            lap_distance = float(lap.get("distance", 0.0)) # meters
+            lap_duration = float(lap.get("duration", 0.0)) # seconds
+            lap_avg_hr = float(lap.get("averageHR", 0.0)) # bpm
+            lap_avg_cadence = float(lap.get("averageRunCadence", 0.0)) # steps per minute
+            lap_max_hr = float(lap.get("maxHR", 0.0)) # bpm
+            lap_elevation_gain = float(lap.get("elevationGain", 0.0)) # meters
 
             distance_m += lap_distance
-            duration_s += lap_duration # Total duration from all laps
+            duration_s += lap_duration
+            total_elevation_gain += lap_elevation_gain
+
 
             if lap_duration > 0:
                 if lap_avg_hr > 0:
@@ -67,6 +91,12 @@ def main():
                 if lap_avg_cadence > 0:
                     total_cadence_sum_weighted += lap_avg_cadence * lap_duration
                     total_duration_for_cadence_avg += lap_duration
+            
+            # Run/Walk Dominance Logic
+            if lap_avg_cadence >= 140: # Threshold for running cadence
+                run_dist += lap_distance
+            else:
+                walk_dist += lap_distance
             
             max_hr_overall = max(max_hr_overall, lap_max_hr)
         
@@ -86,21 +116,33 @@ def main():
 
         distance_m = float(_find_val_summary_fallback(["distance", "sumDistance", "totalDistance"]))
         duration_s = float(_find_val_summary_fallback(["duration", "sumDuration", "elapsedDuration", "activeDuration"]))
-        avg_hr = float(_find_val_summary_fallback(["averageHR", "averageHeartRate", "avgHeartRate"]))
-        avg_cadence = float(_find_val_summary_fallback(["averageRunningCadenceInStepsPerMinute", "averageCadence", "avgCadence"]))
-        max_hr_overall = float(_find_val_summary_fallback(["maxHR", "maxHeartRate"])) # Try to get max HR from summary too
+        avg_hr = float(_find_val_summary_fallback(["averageHR", "avgHeartRate"]))
+        avg_cadence = float(_find_val_summary_fallback(["averageRunCadence", "averageCadence", "avgCadence"]))
+        max_hr_overall = float(_find_val_summary_fallback(["maxHR"]))
+        total_elevation_gain = float(_find_val_summary_fallback(["elevationGain", "totalElevationGain"]))
 
     # 2. Skill XP Calculation Logic (Heuristics for progression)
     # Endurance: 1 XP per 10m run
     # Vitality: Based on HR effort intensity over duration
     # Agility: Based on Cadence efficiency (normalized to 180spm)
+    # Strength: 1 XP per 10m elevation gain
     gains = { # Ensure duration_s is not zero to avoid division by zero in XP calculation
         "endurance": int(distance_m / 10),
         "vitality": int((avg_hr / 60) * (duration_s / 60)) if duration_s > 0 else 0,
-        "agility": int((avg_cadence / 180) * (duration_s / 60) * 10) if duration_s > 0 else 0
+        "agility": int((avg_cadence / 180) * (duration_s / 60) * 10) if duration_s > 0 else 0,
+        "strength": int(total_elevation_gain * 0.1)
     }
 
-    print(f"--- Processing Raid: {ACTIVITY_FILE.name} ---")
+    # Apply Conquest Multiplier if run_dist > walk_dist
+    conquest_multiplier = 1.0
+    if run_dist > walk_dist:
+        conquest_multiplier = 1.25
+        print(f"\n[!] CONQUEST MULTIPLIER (1.25x) applied! Run distance ({run_dist:.2f}m) > Walk distance ({walk_dist:.2f}m).")
+        for skill in gains:
+            gains[skill] = int(gains[skill] * conquest_multiplier)
+    
+
+    print(f"--- Processing Raid: {latest_activity_path.name} ---")
     print(f"Telemetry: {distance_m:.2f}m, {duration_s:.2f}s, Avg HR: {avg_hr:.2f}bpm, Max HR: {max_hr_overall:.2f}bpm, Avg Cadence: {avg_cadence:.2f}spm")
     
     # 3. Leveling Engine
@@ -127,6 +169,7 @@ def main():
         save_game["current_level"] = new_saga_level
         print(f"\n[!] YOUR SAGA GROWS: Saga Level {save_game['current_level']} reached.")
 
+    save_game["processed_activities"].append(activity_id_str) 
     # Save updated state back to the save_game.json
     with open(SAVE_GAME_PATH, "w") as f:
         json.dump(save_game, f, indent=4)
