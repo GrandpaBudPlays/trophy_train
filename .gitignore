@@ -1,0 +1,39 @@
+# --- Python Virtual Environments ---
+.venv/
+venv/
+ENV/
+env/
+bin/
+lib/
+include/
+share/
+
+# --- Environment Variables (CRITICAL for your Garmin Passwords) ---
+.env
+.flaskenv
+
+# --- Python Cache & Compiled Files ---
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+
+# --- VS Code & IDE Settings ---
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# --- Data & Logs (Specific to your Gamification project) ---
+*.log
+*.csv
+*.sqlite
+*.db
+data/
+outputs/
+.garmin_tokens/
+
+# --- OS Specific ---
+.DS_Store
+Thumbs.db
