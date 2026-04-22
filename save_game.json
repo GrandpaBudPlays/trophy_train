@@ -1,0 +1,27 @@
+{
+    "character_name": "Bud",
+    "current_level": 0,
+    "biome": "Meadows",
+    "boss_flags": {
+        "eikthyr_1.5mi": false
+    },
+    "skills": {
+        "endurance": {
+            "level": 2,
+            "xp": 272
+        },
+        "vitality": {
+            "level": 0,
+            "xp": 0
+        },
+        "agility": {
+            "level": 0,
+            "xp": 0
+        }
+    },
+    "status": {
+        "last_raid_date": "2026-04-21",
+        "streak_days": 1,
+        "is_at_the_inn": false
+    }
+}
