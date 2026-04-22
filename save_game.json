@@ -7,20 +7,20 @@
     },
     "skills": {
         "endurance": {
-            "level": 2,
-            "xp": 272
+            "level": 3,
+            "xp": 410
         },
         "strength": {
             "level": 0,
-            "xp": 2
+            "xp": 4
         },
         "vitality": {
             "level": 1,
-            "xp": 52
+            "xp": 181
         },
         "agility": {
             "level": 2,
-            "xp": 35
+            "xp": 448
         }
     },
     "status": {
@@ -29,6 +29,7 @@
         "is_at_the_inn": false
     },
     "processed_activities": [
-        "22608417062"
+        "22608417062",
+        "22619856500"
     ]
 }
