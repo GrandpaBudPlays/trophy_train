@@ -1,25 +1,25 @@
 {
     "character_name": "Bud",
-    "current_level": 2,
+    "current_level": 1,
     "biome": "Meadows",
     "boss_flags": {
         "eikthyr_1.5mi": false
     },
     "skills": {
         "endurance": {
-            "level": 3,
-            "xp": 510
+            "level": 2,
+            "xp": 752
         },
         "vitality": {
             "level": 1,
-            "xp": 281
+            "xp": 181
         },
         "agility": {
-            "level": 3,
-            "xp": 29
+            "level": 2,
+            "xp": 271
         },
         "strength": {
-            "level": 1,
+            "level": 0,
             "xp": 4
         }
     },

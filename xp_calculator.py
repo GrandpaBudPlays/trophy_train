@@ -10,12 +10,12 @@ DATA_DIR = Path("/home/bud/dev/trophy_train/data")
 
 def calculate_xp_requirement(level: int) -> int:
     """
-    Applies the Power Law formula: XP_Required = Base * Level^1.5
+    Applies the Power Law formula: XP_Required = Base * Level^2.2
     Calculates the threshold required to reach the next level.
     """
     if level < 1:
         return BASE_XP
-    return math.floor(BASE_XP * math.pow(level, 1.5))
+    return math.floor(BASE_XP * math.pow(level, 2.2))
 
 def main():
     parser = argparse.ArgumentParser(description="Viking 5k XP Calculator")

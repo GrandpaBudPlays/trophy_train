@@ -26,15 +26,16 @@
 The training cycle is modeled as a 40-level saga divided into Biomes, gated by "Boss Fights."
 
 ### A. Progression & Biomes
-1. **The Meadows (Levels 1–10):** Base building. Boss: 1.5-mile non-stop run.
-2. **The Black Forest (Levels 11–20):** Hills and intervals. Boss: 2-mile hill challenge.
-3. **The Swamp/Mountains (Levels 21–30):** Endurance/Intensity. Boss: 3 miles at 5k target pace.
-4. **The Plains (Level 30):** The 5k Race.
-5. **Ashlands/Prestige (Levels 31–40):** Elite performance and placement markers.
+1. **The Meadows (Levels 1–10):** Base building. Boss: 1.0-mile non-stop run.
+2. **The Black Forest (Levels 11–20):**  Boss: 1.5-mile at 5k target pace.
+3. **The Mountains (Levels 21–30):** Hills and intervals. Boss: 2 miles at 5k target pace.
+4. **The Swamp (Levels 31–40):** The whole package. Boss: 3.1 miles at 5k target pace. 
+4. **The Plains (Level 41-50):** Future 5k Race (year 3 placing in top 3).
+5. **Mistlands (Level 51-60):** Post 5-k.
 
 ### B. Leveling Math (The Power Law)
 To mirror physiological diminishing returns, leveling is exponential.
-- **Formula:** $XP_{Required} = Base \times Level^{1.5}$
+- **Formula:** $XP_{Required} = Base \times Level^{2.2}$
 - **Skills:** Level independently based on Garmin telemetry:
     - **Endurance:** Derived from total distance.
     - **Vitality:** Derived from Heart Rate Zones.
