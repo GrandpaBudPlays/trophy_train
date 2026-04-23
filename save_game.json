@@ -8,19 +8,19 @@
     "skills": {
         "endurance": {
             "level": 3,
-            "xp": 410
-        },
-        "strength": {
-            "level": 0,
-            "xp": 4
+            "xp": 510
         },
         "vitality": {
             "level": 1,
-            "xp": 181
+            "xp": 281
         },
         "agility": {
-            "level": 2,
-            "xp": 448
+            "level": 3,
+            "xp": 29
+        },
+        "strength": {
+            "level": 1,
+            "xp": 4
         }
     },
     "status": {
