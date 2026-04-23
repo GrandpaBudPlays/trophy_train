@@ -35,13 +35,13 @@ def main():
 
     if args.restart:
         print("\n--- [!] RESTARTING SAGA: Zeroing out progress and recalculating all raids ---")
-        save_game["current_level"] = 1
+        save_game["current_level"] = 0
         save_game["processed_activities"] = []
         save_game["skills"] = {
-            "endurance": {"level": 1, "xp": 0},
-            "vitality": {"level": 1, "xp": 0},
-            "agility": {"level": 1, "xp": 0},
-            "strength": {"level": 1, "xp": 0}
+            "endurance": {"level": 0, "xp": 0},
+            "vitality": {"level": 0, "xp": 0},
+            "agility": {"level": 0, "xp": 0},
+            "strength": {"level": 0, "xp": 0}
         }
         # Process all activities in order of creation/discovery
         activities_to_process = sorted(activity_files, key=lambda f: f.stat().st_mtime)
