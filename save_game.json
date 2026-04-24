@@ -1,26 +1,31 @@
 {
     "character_name": "Bud",
-    "current_level": 1,
+    "current_level": 2,
     "biome": "Meadows",
     "boss_flags": {
         "eikthyr_1.5mi": false
     },
+    "world_state": {
+        "current_biome": "The Meadows",
+        "boss_defeated": false,
+        "next_milestone": "0.5 mile continuous run < 160 avg HR"
+    },
     "skills": {
         "endurance": {
-            "level": 2,
-            "xp": 752
+            "level": 3,
+            "xp": 495
         },
         "vitality": {
             "level": 1,
-            "xp": 181
+            "xp": 374
         },
         "agility": {
             "level": 2,
-            "xp": 271
+            "xp": 830
         },
         "strength": {
             "level": 0,
-            "xp": 4
+            "xp": 7
         }
     },
     "status": {
@@ -30,6 +35,8 @@
     },
     "processed_activities": [
         "22608417062",
-        "22619856500"
+        "22619856500",
+        "22632376750",
+        "22644194910"
     ]
 }

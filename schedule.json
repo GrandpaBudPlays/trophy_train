@@ -1,0 +1,53 @@
+{
+    "meta": {
+        "version": "1.0",
+        "owner": "Bud",
+        "project": "TrophyTrain",
+        "biome_focus": "The Meadows"
+    },
+    "weekly_template": {
+        "Monday": {
+            "type": "saga",
+            "focus": "Endurance",
+            "min_dist_km": 2.0
+        },
+        "Tuesday": {
+            "type": "inn",
+            "focus": "Rest",
+            "allow_active_recovery": true
+        },
+        "Wednesday": {
+            "type": "saga",
+            "focus": "Agility",
+            "min_dist_km": 1.5
+        },
+        "Thursday": {
+            "type": "inn",
+            "focus": "Rest",
+            "allow_active_recovery": true
+        },
+        "Friday": {
+            "type": "saga",
+            "focus": "Vitality",
+            "min_dist_km": 2.0
+        },
+        "Saturday": {
+            "type": "boss",
+            "focus": "Milestone",
+            "min_dist_km": 2.4
+        },
+        "Sunday": {
+            "type": "inn",
+            "focus": "Rest",
+            "allow_active_recovery": true
+        }
+    },
+    "calendar_overrides": {
+        "2026-06-20": {
+            "type": "inn",
+            "event": "90th Birthday Celebration",
+            "decay_modifier": 0.0,
+            "note": "Family reunion in Oklahoma - Immunity from decay."
+        }
+    }
+}
