@@ -21,7 +21,7 @@
         },
         "agility": {
             "level": 2,
-            "xp": 830
+            "xp": 837
         },
         "strength": {
             "level": 0,
@@ -30,8 +30,9 @@
     },
     "status": {
         "last_raid_date": "2026-04-21",
-        "streak_days": 1,
-        "is_at_the_inn": false
+        "streak_days": 0,
+        "is_at_the_inn": false,
+        "interval_success_count": 7
     },
     "processed_activities": [
         "22608417062",
