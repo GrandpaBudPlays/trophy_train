@@ -75,13 +75,11 @@ def get_client():
     
     return client
 
-def display_activity_details(client, activity_id, show_laps=True):
-    """Fetches and prints the laps/splits for a specific activity."""
-    os.makedirs(data_dir, exist_ok=True)
-    cache_path = os.path.join(data_dir, f"activity_{activity_id}.json")
-    details_cache_path = os.path.join(data_dir, f"activity_{activity_id}_details.json")
-
-    # 1. Check local cache for Summary Data
+def _load_or_fetch_summary_data(client, activity_id, cache_path, data_dir):
+    """
+    Helper function to load activity summary data from cache or fetch from Garmin API.
+    Returns the loaded/fetched activity details.
+    """
     if os.path.exists(cache_path):
         print(f"Loading activity {activity_id} from local cache...")
         with open(cache_path, 'r') as f:
@@ -89,15 +87,19 @@ def display_activity_details(client, activity_id, show_laps=True):
     else:
         if client is None:
             print(f"[Grandpa] Error: Activity {activity_id} not in cache and no API client available.")
-            return
+            return None
 
         print(f"[Grandpa] Fetching activity {activity_id} from Garmin API...")
         details = client.get_activity_splits(activity_id)
         with open(cache_path, 'w') as f:
             json.dump(details, f, indent=4)
         print(f"[Grandpa] Summary cached to {data_dir}/")
-    
-    # 2. Check local cache for Granular Time-Series Data (Interval Precision)
+    return details
+
+def _load_or_fetch_detailed_data(client, activity_id, details_cache_path):
+    """
+    Helper function to load detailed time-series data from cache or fetch from Garmin API.
+    """
     if not os.path.exists(details_cache_path):
         if client:
             print(f"[Grandpa] Downloading time-series telemetry for Activity {activity_id}...")
@@ -107,7 +109,6 @@ def display_activity_details(client, activity_id, show_laps=True):
                     json.dump(granular_details, f, indent=4)
                 print(f"[Conrad] The skalds have recorded the precise rhythm of your stride.")
             except Exception as e:
-                # Log the error but don't fail; we can fall back to lap data
                 print(f"[Grandpa] Warning: Could not fetch granular details: {e}")
         else:
             print(f"[Grandpa] Granular data missing and no API connection. Falling back to summary.")
@@ -115,15 +116,14 @@ def display_activity_details(client, activity_id, show_laps=True):
         print(f"[Grandpa] Detailed telemetry for {activity_id} found in archives.")
         print(f"[Conrad] The saga's fine details are already known.")
 
-    # If we are just backfilling history, skip the console output
-    if not show_laps:
-        return
-
+def _print_lap_details(details, activity_id):
+    """
+    Helper function to format and print the lap details to the console.
+    """
     print(f"\n--- Lap Details for Activity {activity_id} ---")
     print(f"{'Lap':<4} | {'Time(s)':<8} | {'Dist(m)':<8} | {'Pace(km)':<8} | {'Dist(mi)':<8} | {'Pace(mi)':<8}")
     print("-" * 65)
     
-    # Consistency Check: Use same fallback keys as xp_calculator.py
     laps = details.get('lapDTOs') or details.get('lapSummaries') or details.get('laps') or []
     
     if not laps:
@@ -134,25 +134,37 @@ def display_activity_details(client, activity_id, show_laps=True):
         dist = lap.get('distance', 0)
         duration = lap.get('duration', 0)
         
-        if dist > 0:
-            # Metric Logic (KM)
+        pace_km_str = "N/A"
+        dist_mi = 0
+        pace_mi_str = "N/A"
+
+        if dist > 0 and duration > 0: # Ensure valid division
             pace_min_km = (duration / 60) / (dist / 1000)
-            min_km = int(pace_min_km)
-            sec_km = int((pace_min_km - min_km) * 60)
-            pace_km_str = f"{min_km}:{sec_km:02d}"
+            pace_km_str = f"{int(pace_min_km)}:{int((pace_min_km - int(pace_min_km)) * 60):02d}"
             
-            # Imperial Logic (Miles)
             dist_mi = dist * 0.000621371
             pace_min_mi = (duration / 60) / dist_mi
-            min_mi = int(pace_min_mi)
-            sec_mi = int((pace_min_mi - min_mi) * 60)
-            pace_mi_str = f"{min_mi}:{sec_mi:02d}"
-        else:
-            pace_km_str = "N/A"
-            dist_mi = 0
-            pace_mi_str = "N/A"
+            pace_mi_str = f"{int(pace_min_mi)}:{int((pace_min_mi - int(pace_min_mi)) * 60):02d}"
             
         print(f"{i:<4} | {duration:<8.1f} | {dist:<8.1f} | {pace_km_str:<8} | {dist_mi:<8.2f} | {pace_mi_str:<8}")
+
+def display_activity_details(client, activity_id, show_laps=True):
+    """Fetches and prints the laps/splits for a specific activity."""
+    os.makedirs(data_dir, exist_ok=True)
+    cache_path = os.path.join(data_dir, f"activity_{activity_id}.json")
+    details_cache_path = os.path.join(data_dir, f"activity_{activity_id}_details.json")
+
+    details = _load_or_fetch_summary_data(client, activity_id, cache_path, data_dir)
+    if details is None:
+        return # Failed to get summary data
+
+    _load_or_fetch_detailed_data(client, activity_id, details_cache_path)
+
+    # If we are just backfilling history, skip the console output
+    if not show_laps:
+        return
+
+    _print_lap_details(details, activity_id)
 
 try:
     # Initialize connection using the cache logic
@@ -161,7 +173,10 @@ try:
     if client is None:
         print("\n[!] Login failed or Rate Limited. Checking for archived data...")
         if os.path.exists(data_dir):
-            archived_files = [f for f in os.listdir(data_dir) if f.startswith("activity_") and f.endswith(".json")]
+            # Only include summary files; exclude detailed telemetry JSONs to prevent parsing errors
+            archived_files = [
+                f for f in os.listdir(data_dir) if f.startswith("activity_") and f.endswith(".json") and "_details" not in f
+            ]
             if archived_files:
                 # Sort by file modification time to find the most recently saved activity
                 latest_cache = max([os.path.join(data_dir, f) for f in archived_files], key=os.path.getmtime)
