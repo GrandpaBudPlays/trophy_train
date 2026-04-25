@@ -75,35 +75,56 @@ def get_client():
     
     return client
 
-def display_activity_details(client, activity_id):
+def display_activity_details(client, activity_id, show_laps=True):
     """Fetches and prints the laps/splits for a specific activity."""
     os.makedirs(data_dir, exist_ok=True)
     cache_path = os.path.join(data_dir, f"activity_{activity_id}.json")
+    details_cache_path = os.path.join(data_dir, f"activity_{activity_id}_details.json")
 
-    # Check local cache first
+    # 1. Check local cache for Summary Data
     if os.path.exists(cache_path):
         print(f"Loading activity {activity_id} from local cache...")
         with open(cache_path, 'r') as f:
             details = json.load(f)
     else:
         if client is None:
-            print(f"Error: Activity {activity_id} not in cache and no API client available.")
+            print(f"[Grandpa] Error: Activity {activity_id} not in cache and no API client available.")
             return
 
-        # Fetch from API if not cached
-        print(f"Fetching activity {activity_id} from Garmin API...")
+        print(f"[Grandpa] Fetching activity {activity_id} from Garmin API...")
         details = client.get_activity_splits(activity_id)
-        # Save to cache
         with open(cache_path, 'w') as f:
             json.dump(details, f, indent=4)
-        print(f"Activity {activity_id} cached to {data_dir}/")
+        print(f"[Grandpa] Summary cached to {data_dir}/")
     
+    # 2. Check local cache for Granular Time-Series Data (Interval Precision)
+    if not os.path.exists(details_cache_path):
+        if client:
+            print(f"[Grandpa] Downloading time-series telemetry for Activity {activity_id}...")
+            try:
+                granular_details = client.get_activity_details(activity_id)
+                with open(details_cache_path, 'w') as f:
+                    json.dump(granular_details, f, indent=4)
+                print(f"[Conrad] The skalds have recorded the precise rhythm of your stride.")
+            except Exception as e:
+                # Log the error but don't fail; we can fall back to lap data
+                print(f"[Grandpa] Warning: Could not fetch granular details: {e}")
+        else:
+            print(f"[Grandpa] Granular data missing and no API connection. Falling back to summary.")
+    else:
+        print(f"[Grandpa] Detailed telemetry for {activity_id} found in archives.")
+        print(f"[Conrad] The saga's fine details are already known.")
+
+    # If we are just backfilling history, skip the console output
+    if not show_laps:
+        return
+
     print(f"\n--- Lap Details for Activity {activity_id} ---")
     print(f"{'Lap':<4} | {'Time(s)':<8} | {'Dist(m)':<8} | {'Pace(km)':<8} | {'Dist(mi)':<8} | {'Pace(mi)':<8}")
     print("-" * 65)
     
-    # Garmin API may return 'lapSummaries' or 'lapDTOs' depending on the activity type
-    laps = details.get('lapSummaries') or details.get('lapDTOs') or []
+    # Consistency Check: Use same fallback keys as xp_calculator.py
+    laps = details.get('lapDTOs') or details.get('lapSummaries') or details.get('laps') or []
     
     if not laps:
         print("No lap data (summaries or DTOs) found for this activity.")
@@ -156,16 +177,21 @@ try:
     print(f"Connected as: {client.get_full_name()}")
     print("-" * 30)
     
-    # Pull last 5 activities
-    activities = client.get_activities(0, 1)
+    # Fetch last 10 activities to ensure historical data is available for recalculations
+    print(f"[Grandpa] Checking for recent raids and updating the Great Library...")
+    activities = client.get_activities(0, 10)
+    
     if activities:
+        # 1. Process and display the latest activity
         latest = activities[0]
-        # Extract data for Trophy Train
-        act_id = latest['activityId']
         print(f"Latest Activity: {latest['activityName']} ({latest['startTimeLocal']})")
+        display_activity_details(client, latest['activityId'], show_laps=True)
         
-        # Drill down into the splits
-        display_activity_details(client, act_id)
+        # 2. Silently backfill detailed metrics for historical activities
+        # This ensures xp_calculator.py --restart has the data it needs for "Interval Precision"
+        print(f"\n[Grandpa] Filling in detailed metrics for older raids...")
+        for act in activities[1:]:
+            display_activity_details(client, act['activityId'], show_laps=False)
     else:
         print("No activities found.")
 

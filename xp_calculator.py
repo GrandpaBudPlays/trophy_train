@@ -7,6 +7,7 @@ from pathlib import Path
 BASE_XP = 100
 SAVE_GAME_PATH = Path("/home/bud/dev/trophy_train/save_game.json")
 DATA_DIR = Path("/home/bud/dev/trophy_train/data")
+JOGGING_THRESHOLD = 135  # Revised from 140 for 2/3 interval training
 
 def calculate_xp_requirement(level: int) -> int:
     """
@@ -27,7 +28,7 @@ def main():
         save_game = json.load(f)
 
     # Find activities in the data directory
-    activity_files = list(DATA_DIR.glob("activity_*.json"))
+    activity_files = [f for f in DATA_DIR.glob("activity_*.json") if "_details" not in f.name]
     
     if not activity_files:
         print(f"Error: No activity data found in {DATA_DIR}")
@@ -43,6 +44,10 @@ def main():
             "agility": {"level": 0, "xp": 0},
             "strength": {"level": 0, "xp": 0}
         }
+        if "status" in save_game:
+            save_game["status"]["interval_success_count"] = 0
+            save_game["status"]["streak_days"] = 0
+
         # Process all activities in order of creation/discovery
         activities_to_process = sorted(activity_files, key=lambda f: f.stat().st_mtime)
     else:
@@ -57,6 +62,12 @@ def main():
             save_game["processed_activities"] = []
         if "strength" not in save_game["skills"]:
             save_game["skills"]["strength"] = {"level": 0, "xp": 0}
+
+        # Initialize new metrics block to prevent KeyError
+        if "status" not in save_game:
+            save_game["status"] = {}
+        if "interval_success_count" not in save_game["status"]:
+            save_game["status"]["interval_success_count"] = 0
 
         if activity_id_str in save_game["processed_activities"]:
             if not args.restart:
@@ -114,7 +125,7 @@ def main():
                         total_duration_for_cadence_avg += lap_duration
                 
                 # Run/Walk Dominance Logic
-                if lap_avg_cadence >= 140: # Threshold for running cadence
+                if lap_avg_cadence >= JOGGING_THRESHOLD:
                     run_dist += lap_distance
                 else:
                     walk_dist += lap_distance
@@ -149,6 +160,101 @@ def main():
             "agility": int((avg_cadence / 180) * (duration_s / 60) * 10) if duration_s > 0 else 0,
             "strength": int(total_elevation_gain * 0.1)
         }
+
+        # 2b. Refined Analysis (Time-Series) if detailed data exists
+        details_path = DATA_DIR / f"activity_{activity_id_str}_details.json"
+        if details_path.exists():
+            print(f"[Grandpa] Engaging Interval Precision analysis for activity {activity_id_str}...")
+            with open(details_path, "r") as f:
+                try:
+                    detailed_data = json.load(f)
+                except json.JSONDecodeError:
+                    print(f"[Grandpa] Error: Detailed file for {activity_id_str} is corrupted or empty.")
+                    detailed_data = {}
+            
+            # Handle case where details might be wrapped in a list
+            if isinstance(detailed_data, list) and len(detailed_data) > 0:
+                detailed_data = detailed_data[0]
+
+            descriptors = detailed_data.get("metricDescriptors", [])
+            metrics = detailed_data.get("activityDetailMetrics", [])
+            
+            # Expanded key lookup for diverse Garmin telemetry profiles (Priority Sorted)
+            cad_keys = ["directstepcount", "cadence", "cyclingcadence", "steps", "directruncadence", "runningcadence", "directdoublecadence", "directfractionalcadence"]
+            dist_keys = ["sumdistance", "distance", "totaldistance", "sum_distance"]
+            dur_keys = ["sumelapsedduration", "sumduration", "elapsedduration"]
+
+            # Priority-based index selection: Ensure we get 'Double' or 'StepCount' before 'Fractional'
+            cad_idx = -1
+            for priority_key in ["directdoublecadence", "directstepcount", "cadence", "directruncadence", "runningcadence"]:
+                idx = next((d.get("metricsIndex") for d in descriptors if d.get("key", "").lower() == priority_key), -1)
+                if idx != -1:
+                    cad_idx = idx
+                    break
+            
+            # Fallback for generic keys if priority keys aren't found
+            if cad_idx == -1:
+                cad_idx = next((d.get("metricsIndex") for d in descriptors if d.get("key", "").lower() in cad_keys), -1)
+                
+            dist_idx = next((d.get("metricsIndex") for d in descriptors if d.get("key", "").lower() in dist_keys), -1)
+            dur_idx = next((d.get("metricsIndex") for d in descriptors if d.get("key", "").lower() in dur_keys), -1)
+            
+            if metrics and cad_idx != -1 and dist_idx != -1:
+                precise_run_dist = 0.0
+                precise_walk_dist = 0.0
+                precise_agility_xp = 0.0
+                
+                # Initialize trackers
+                prev_d = 0.0
+                prev_t = 0.0
+                
+                for m in metrics:
+                    vals = m.get("metrics", [])
+                    if len(vals) > max(cad_idx, dist_idx, dur_idx):
+                        c = vals[cad_idx]
+                        d = vals[dist_idx]
+                        t = vals[dur_idx]
+                        
+                        # Skip samples where distance or time is missing to prevent logic spikes
+                        if d is None or t is None:
+                            continue
+                        
+                        c_val = c or 0
+                        
+                        delta_d = d - prev_d
+                        delta_t = t - prev_t
+                        
+                        # Guard against negative deltas (GPS resets) or zero time
+                        if delta_t <= 0 or delta_d < 0:
+                            prev_d, prev_t = d, t
+                            continue
+
+                        # Agility XP is awarded for all movement, scaled by cadence intensity.
+                        # This ensures walking intervals contribute to Agility growth.
+                        precise_agility_xp += (c_val / 180) * (delta_t / 60) * 10
+
+                        if c_val >= JOGGING_THRESHOLD:
+                            precise_run_dist += delta_d
+                        else:
+                            precise_walk_dist += delta_d
+                            
+                        prev_d = d
+                        prev_t = t
+                
+                print(f"[Grandpa] Interval Precision: Run Dist: {precise_run_dist:.0f}m | Walk Dist: {precise_walk_dist:.0f}m")
+                print(f"[Conrad] The skalds confirm: {precise_run_dist:.0f} meters of jogging in this raid.")
+                
+                run_dist = precise_run_dist
+                walk_dist = precise_walk_dist
+                gains["agility"] = int(precise_agility_xp)
+                save_game["status"]["interval_success_count"] += int(precise_run_dist // 400)
+            else:
+                found_keys = [d.get("key") for d in descriptors]
+                print(f"[Grandpa] Warning: Critical telemetry metrics missing from detailed file.")
+                print(f"          Available keys in this raid: {found_keys}")
+                print(f"          Falling back to Lap summaries.")
+        else:
+            print(f"[Grandpa] Historical note: Detailed telemetry missing for raid {activity_id_str}. Utilizing Lap summaries.")
 
         # Apply Conquest Multiplier if run_dist > walk_dist
         conquest_multiplier = 1.0

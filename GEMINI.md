@@ -1,4 +1,4 @@
-# Project: Viking 5k Saga (Tropy Train Engine)
+# Project: Viking 5k Saga (Trophy Train Engine)
 **Role:** AI Context & System Architecture Definition
 **Focus:** Gamification of 5k training via Garmin data, Valheim-style progression, and EverQuest-style stakes.
 
@@ -26,7 +26,7 @@
 The training cycle is modeled as a 40-level saga divided into Biomes, gated by "Boss Fights."
 
 ### A. Progression & Biomes
-1. **The Meadows (Levels 1–10):** Base building. Boss: 1.0-mile non-stop run.
+1. **The Meadows (Levels 1–10):** Base building. Boss: 1.0-mile non-stop run, HR < 160 bpm>.
 2. **The Black Forest (Levels 11–20):**  Boss: 1.5-mile at 5k target pace.
 3. **The Mountains (Levels 21–30):** Hills and intervals. Boss: 2 miles at 5k target pace.
 4. **The Swamp (Levels 31–40):** The whole package. Boss: 3.1 miles at 5k target pace. 
@@ -59,7 +59,9 @@ The engine must parse `lapDTOs` or `lapSummaries` to extract:
 - **Distance:** Calculate Metric (m/km) and Imperial (mi).
 - **Pace:** `(duration / 60) / distance`.
 - **Heart Rate:** Identify time spent in Peak vs. Aerobic zones.
-- **Cadence:** Track average vs. max bursts for Agility XP.
+- **Cadence:** Track average vs. max bursts.
+- **Interval Precision:** Engine utilizes Garmin's activity detail samples for time-series analysis to distinguish jogging (>135 spm) from walking phases. (Upgraded in v1.1)
+- **Conquest Multiplier:** Triggered when jogging distance (cadence > 135 spm) exceeds walking distance.
 
 ### 3. State Management (`save_game.json`)
 The source of truth for the character state.
