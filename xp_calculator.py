@@ -18,6 +18,76 @@ def calculate_xp_requirement(level: int) -> int:
         return BASE_XP
     return math.floor(BASE_XP * math.pow(level, 2.2))
 
+def _process_interval_telemetry(details_path):
+    """Parses detailed telemetry to return (run_dist, walk_dist, agility_xp)."""
+    try:
+        with open(details_path, "r") as f:
+            detailed_data = json.load(f)
+    except (json.JSONDecodeError, FileNotFoundError):
+        return None
+
+    if isinstance(detailed_data, list) and len(detailed_data) > 0:
+        detailed_data = detailed_data[0]
+
+    descriptors = detailed_data.get("metricDescriptors", [])
+    metrics = detailed_data.get("activityDetailMetrics", [])
+
+    # Priority Sorted Key Lookups
+    cad_keys = ["directdoublecadence", "directstepcount", "cadence", "directruncadence", "runningcadence"]
+    dist_keys = ["sumdistance", "distance", "totaldistance", "sum_distance"]
+    dur_keys = ["sumelapsedduration", "sumduration", "elapsedduration"]
+
+    cad_idx = -1
+    for pk in cad_keys:
+        idx = next((d.get("metricsIndex") for d in descriptors if d.get("key", "").lower() == pk), -1)
+        if idx != -1:
+            cad_idx = idx
+            break
+
+    dist_idx = next((d.get("metricsIndex") for d in descriptors if d.get("key", "").lower() in dist_keys), -1)
+    dur_idx = next((d.get("metricsIndex") for d in descriptors if d.get("key", "").lower() in dur_keys), -1)
+
+    if not metrics or cad_idx == -1 or dist_idx == -1 or dur_idx == -1:
+        return None
+
+    precise_run_dist = 0.0
+    precise_walk_dist = 0.0
+    precise_agility_xp = 0.0
+    prev_d, prev_t = 0.0, 0.0
+
+    for m in metrics:
+        vals = m.get("metrics", [])
+        if len(vals) > max(cad_idx, dist_idx, dur_idx):
+            c, d, t = vals[cad_idx], vals[dist_idx], vals[dur_idx]
+            
+            if d is None or t is None:
+                continue
+
+            c_val = c or 0
+            delta_d = d - prev_d
+            delta_t = t - prev_t
+
+            if delta_t <= 0 or delta_d < 0:
+                prev_d, prev_t = d, t
+                continue
+
+            # Agility XP is awarded for all movement, scaled by cadence intensity.
+            precise_agility_xp += (c_val / 180) * (delta_t / 60) * 10
+
+            if c_val >= JOGGING_THRESHOLD:
+                precise_run_dist += delta_d
+            else:
+                precise_walk_dist += delta_d
+                
+            prev_d, prev_t = d, t
+
+    return {
+        "run_dist": precise_run_dist,
+        "walk_dist": precise_walk_dist,
+        "agility_xp": int(precise_agility_xp),
+        "descriptors": [d.get("key") for d in descriptors]
+    }
+
 def main():
     parser = argparse.ArgumentParser(description="Viking 5k XP Calculator")
     parser.add_argument("--restart", action="store_true", help="Zero out save game and reprocess all activities")
@@ -165,93 +235,18 @@ def main():
         details_path = DATA_DIR / f"activity_{activity_id_str}_details.json"
         if details_path.exists():
             print(f"[Grandpa] Engaging Interval Precision analysis for activity {activity_id_str}...")
-            with open(details_path, "r") as f:
-                try:
-                    detailed_data = json.load(f)
-                except json.JSONDecodeError:
-                    print(f"[Grandpa] Error: Detailed file for {activity_id_str} is corrupted or empty.")
-                    detailed_data = {}
+            results = _process_interval_telemetry(details_path)
             
-            # Handle case where details might be wrapped in a list
-            if isinstance(detailed_data, list) and len(detailed_data) > 0:
-                detailed_data = detailed_data[0]
-
-            descriptors = detailed_data.get("metricDescriptors", [])
-            metrics = detailed_data.get("activityDetailMetrics", [])
-            
-            # Expanded key lookup for diverse Garmin telemetry profiles (Priority Sorted)
-            cad_keys = ["directstepcount", "cadence", "cyclingcadence", "steps", "directruncadence", "runningcadence", "directdoublecadence", "directfractionalcadence"]
-            dist_keys = ["sumdistance", "distance", "totaldistance", "sum_distance"]
-            dur_keys = ["sumelapsedduration", "sumduration", "elapsedduration"]
-
-            # Priority-based index selection: Ensure we get 'Double' or 'StepCount' before 'Fractional'
-            cad_idx = -1
-            for priority_key in ["directdoublecadence", "directstepcount", "cadence", "directruncadence", "runningcadence"]:
-                idx = next((d.get("metricsIndex") for d in descriptors if d.get("key", "").lower() == priority_key), -1)
-                if idx != -1:
-                    cad_idx = idx
-                    break
-            
-            # Fallback for generic keys if priority keys aren't found
-            if cad_idx == -1:
-                cad_idx = next((d.get("metricsIndex") for d in descriptors if d.get("key", "").lower() in cad_keys), -1)
+            if results:
+                print(f"[Grandpa] Interval Precision: Run Dist: {results['run_dist']:.0f}m | Walk Dist: {results['walk_dist']:.0f}m")
+                print(f"[Conrad] The skalds confirm: {results['run_dist']:.0f} meters of jogging in this raid.")
                 
-            dist_idx = next((d.get("metricsIndex") for d in descriptors if d.get("key", "").lower() in dist_keys), -1)
-            dur_idx = next((d.get("metricsIndex") for d in descriptors if d.get("key", "").lower() in dur_keys), -1)
-            
-            if metrics and cad_idx != -1 and dist_idx != -1:
-                precise_run_dist = 0.0
-                precise_walk_dist = 0.0
-                precise_agility_xp = 0.0
-                
-                # Initialize trackers
-                prev_d = 0.0
-                prev_t = 0.0
-                
-                for m in metrics:
-                    vals = m.get("metrics", [])
-                    if len(vals) > max(cad_idx, dist_idx, dur_idx):
-                        c = vals[cad_idx]
-                        d = vals[dist_idx]
-                        t = vals[dur_idx]
-                        
-                        # Skip samples where distance or time is missing to prevent logic spikes
-                        if d is None or t is None:
-                            continue
-                        
-                        c_val = c or 0
-                        
-                        delta_d = d - prev_d
-                        delta_t = t - prev_t
-                        
-                        # Guard against negative deltas (GPS resets) or zero time
-                        if delta_t <= 0 or delta_d < 0:
-                            prev_d, prev_t = d, t
-                            continue
-
-                        # Agility XP is awarded for all movement, scaled by cadence intensity.
-                        # This ensures walking intervals contribute to Agility growth.
-                        precise_agility_xp += (c_val / 180) * (delta_t / 60) * 10
-
-                        if c_val >= JOGGING_THRESHOLD:
-                            precise_run_dist += delta_d
-                        else:
-                            precise_walk_dist += delta_d
-                            
-                        prev_d = d
-                        prev_t = t
-                
-                print(f"[Grandpa] Interval Precision: Run Dist: {precise_run_dist:.0f}m | Walk Dist: {precise_walk_dist:.0f}m")
-                print(f"[Conrad] The skalds confirm: {precise_run_dist:.0f} meters of jogging in this raid.")
-                
-                run_dist = precise_run_dist
-                walk_dist = precise_walk_dist
-                gains["agility"] = int(precise_agility_xp)
-                save_game["status"]["interval_success_count"] += int(precise_run_dist // 400)
+                run_dist = results['run_dist']
+                walk_dist = results['walk_dist']
+                gains["agility"] = results['agility_xp']
+                save_game["status"]["interval_success_count"] += int(run_dist // 400)
             else:
-                found_keys = [d.get("key") for d in descriptors]
-                print(f"[Grandpa] Warning: Critical telemetry metrics missing from detailed file.")
-                print(f"          Available keys in this raid: {found_keys}")
+                print(f"[Grandpa] Warning: Critical telemetry metrics missing or corrupted in detailed file.")
                 print(f"          Falling back to Lap summaries.")
         else:
             print(f"[Grandpa] Historical note: Detailed telemetry missing for raid {activity_id_str}. Utilizing Lap summaries.")
