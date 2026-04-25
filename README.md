@@ -112,6 +112,20 @@ Integration with Google Fi Email-to-SMS gateway to receive Conrad's battle repor
 *   **State Integrity:** Never manually edit `save_game.json` unless performing a migration.
 
 ---
+
+## 📂 Directory Structure
+
+```text
+~/dev/trophy_train/
+├── trophy_train.py      # Core execution engine (Garmin API interaction, data ingestion, caching)
+├── .garmin_tokens/      # Session tokens and rate_limit.json (Garmin API authentication)
+├── .env                 # API Credentials (GARMIN_EMAIL, GARMIN_PASSWORD)
+├── schedule.json        # User-defined training/rest calendar (Future: EverQuest Decay System)
+├── save_game.json       # Persistent character state (Skills, XP, Levels, Processed Activities)
+├── data/                # Raw activity JSON cache (activity_ID.json, activity_ID_details.json)
+└── narratives/          # History of generated Sagas (Future: LLM-generated reports)
+```
+---
 **"The skirmish is over, but the saga is just beginning."**
 ```
 
